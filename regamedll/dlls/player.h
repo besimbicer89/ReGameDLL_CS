@@ -112,6 +112,10 @@ const int MONEY_BLINK_AMOUNT = 30;
 #define PFLAG_USING             BIT(4) // Using a continuous entity
 #define PFLAG_OBSERVER          BIT(5) // Player is locked in stationary cam mode. Spectators can move, observers can't.
 
+// Player gamestate flags
+#define HITGROUP_SHIELD_ENABLED     0
+#define HITGROUP_SHIELD_DISABLED    1
+
 #define TRAIN_OFF               0x00
 #define TRAIN_NEUTRAL           0x01
 #define TRAIN_SLOW              0x02
@@ -358,6 +362,8 @@ public:
 	virtual BOOL IsNetClient() { return TRUE; }
 	virtual const char *TeamID();
 	virtual BOOL FBecomeProne();
+
+	// TODO: Need to investigate for what purposes used random to get relative eyes position
 	virtual Vector BodyTarget(const Vector &posSrc) { return Center() + pev->view_ofs * RANDOM_FLOAT(0.5, 1.1); }
 	virtual int Illumination();
 	virtual BOOL ShouldFadeOnDeath() { return FALSE; }
@@ -421,6 +427,9 @@ public:
 	bool CanSwitchTeam_OrigFunc(TeamName teamToSwap);
 	void SetSpawnProtection_OrigFunc(float flProtectionTime);
 	void RemoveSpawnProtection_OrigFunc();
+	bool HintMessageEx_OrigFunc(const char *pMessage, float duration = 6.0f, bool bDisplayIfPlayerDead = false, bool bOverride = false);
+	void UseEmpty_OrigFunc();
+	void DropIdlePlayer_OrigFunc(const char *reason);
 
 	CCSPlayer *CSPlayer() const;
 #endif // REGAMEDLL_API
@@ -510,6 +519,7 @@ public:
 	CBaseEntity *GiveNamedItemEx(const char *pszName);
 	void EnableControl(BOOL fControl);
 	bool HintMessage(const char *pMessage, BOOL bDisplayIfPlayerDead = FALSE, BOOL bOverride = FALSE);
+	bool HintMessageEx(const char *pMessage, float duration = 6.0f, bool bDisplayIfPlayerDead = false, bool bOverride = false);
 	void SendAmmoUpdate();
 	void SendFOV(int fov);
 	void WaterMove();
@@ -603,15 +613,20 @@ public:
 	void DropPrimary();
 	void OnSpawnEquip(bool addDefault = true, bool equipGame = true);
 	void RemoveBomb();
+	void RemoveDefuser();
 	void HideTimer();
 	bool MakeBomber();
 	bool GetIntoGame();
+	bool ShouldToShowAccount(CBasePlayer *pReceiver) const;
+	bool ShouldToShowHealthInfo(CBasePlayer *pReceiver) const;
 
 	CBasePlayerItem *GetItemByName(const char *itemName);
 	CBasePlayerItem *GetItemById(WeaponIdType weaponID);
 
 	void SetSpawnProtection(float flProtectionTime);
 	void RemoveSpawnProtection();
+	void UseEmpty();
+	void DropIdlePlayer(const char *reason);
 
 	// templates
 	template<typename T = CBasePlayerItem, typename Functor>
@@ -864,6 +879,12 @@ public:
 	float m_silentTimestamp;
 	MusicState m_musicState;
 	float m_flLastCommandTime[COMMANDS_TO_TRACK];
+
+#ifdef BUILD_LATEST
+	int m_iLastAccount;
+	int m_iLastClientHealth;
+	float m_tmNextAccountHealthUpdate;
+#endif
 };
 
 class CWShield: public CBaseEntity
@@ -921,7 +942,6 @@ inline CBasePlayer *UTIL_PlayerByIndexSafe(int playerIndex)
 	return pPlayer;
 }
 
-extern int gEvilImpulse101;
 extern entvars_t *g_pevLastInflictor;
 extern CBaseEntity *g_pLastSpawn;
 extern CBaseEntity *g_pLastCTSpawn;

@@ -143,7 +143,7 @@ public:
 	virtual void Precache();
 	virtual void Restart();
 	virtual void KeyValue(KeyValueData *pkvd);
-#ifdef REGAMEDLL_ADD
+#ifdef REGAMEDLL_FIXES
 	virtual void SetObjectCollisionBox();
 #endif
 
@@ -393,9 +393,16 @@ public:
 	void SetPlayerShieldAnim();
 	void ResetPlayerShieldAnim();
 	bool ShieldSecondaryFire(int iUpAnim, int iDownAnim);
+	void HandleInfiniteAmmo();
 	void InstantReload(bool bCanRefillBPAmmo = false);
+	bool DefaultShotgunReload(int iAnim, int iStartAnim, float fDelay, float fStartDelay, const char *pszReloadSound1 = nullptr, const char *pszReloadSound2 = nullptr);
 
 #ifdef REGAMEDLL_API
+	BOOL CanDeploy_OrigFunc();
+	BOOL DefaultDeploy_OrigFunc(char *szViewModel, char *szWeaponModel, int iAnim, char *szAnimExt, int skiplocal);
+	BOOL DefaultReload_OrigFunc(int iClipSize, int iAnim, float fDelay);
+	bool DefaultShotgunReload_OrigFunc(int iAnim, int iStartAnim, float fDelay, float fStartDelay, const char *pszReloadSound1, const char *pszReloadSound2);
+
 	CCSPlayerWeapon *CSPlayerWeapon() const;
 #endif
 
@@ -807,7 +814,6 @@ private:
 #define BOMB_FLAG_DROPPED	0 // if the bomb was dropped due to voluntary dropping or death/disconnect
 #define BOMB_FLAG_PLANTED	1 // if the bomb has been planted will also trigger the round timer to hide will also show where the dropped bomb on the Terrorist team's radar.
 
-const float C4_MAX_AMMO       = 1.0f;
 const float C4_MAX_SPEED      = 250.0f;
 const float C4_ARMING_ON_TIME = 3.0f;
 
@@ -943,6 +949,10 @@ public:
 		return TRUE;
 	#endif
 	}
+
+#ifdef REGAMEDLL_API
+	BOOL CanDeploy_OrigFunc();
+#endif
 
 public:
 	bool ShieldSecondaryFire(int iUpAnim, int iDownAnim);
@@ -1100,6 +1110,10 @@ public:
 	#endif
 	}
 
+#ifdef REGAMEDLL_API
+	BOOL CanDeploy_OrigFunc();
+#endif
+
 public:
 	bool ShieldSecondaryFire(int iUpAnim, int iDownAnim);
 	void SetPlayerShieldAnim();
@@ -1251,6 +1265,7 @@ public:
 	virtual BOOL Deploy();
 	virtual float GetMaxSpeed() { return M3_MAX_SPEED; }
 	virtual int iItemSlot() { return PRIMARY_WEAPON_SLOT; }
+	virtual BOOL PlayEmptySound();
 	virtual void PrimaryAttack();
 	virtual void Reload();
 	virtual void WeaponIdle();
@@ -1574,6 +1589,10 @@ public:
 	#endif
 	}
 
+#ifdef REGAMEDLL_API
+	BOOL CanDeploy_OrigFunc();
+#endif
+
 public:
 	bool ShieldSecondaryFire(int iUpAnim, int iDownAnim);
 	void SetPlayerShieldAnim();
@@ -1656,6 +1675,7 @@ public:
 	virtual BOOL Deploy();
 	virtual float GetMaxSpeed() { return XM1014_MAX_SPEED; }
 	virtual int iItemSlot() { return PRIMARY_WEAPON_SLOT; }
+	virtual BOOL PlayEmptySound();
 	virtual void PrimaryAttack();
 	virtual void Reload();
 	virtual void WeaponIdle();

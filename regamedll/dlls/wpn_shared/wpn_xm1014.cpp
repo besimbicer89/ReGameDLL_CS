@@ -58,6 +58,13 @@ BOOL CXM1014::Deploy()
 	return DefaultDeploy("models/v_xm1014.mdl", "models/p_xm1014.mdl", XM1014_DRAW, "m249", UseDecrement() != FALSE);
 }
 
+BOOL CXM1014::PlayEmptySound()
+{
+	BOOL result = CBasePlayerWeapon::PlayEmptySound();
+	m_iPlayEmptySound = 0;
+	return result;
+}
+
 void CXM1014::PrimaryAttack()
 {
 	Vector vecAiming, vecSrc, vecDir;
@@ -73,6 +80,19 @@ void CXM1014::PrimaryAttack()
 
 	if (m_iClip <= 0)
 	{
+#ifdef BUILD_LATEST_FIXES
+		if (!m_fInSpecialReload)
+		{
+			PlayEmptySound();
+
+			if (TheBots)
+			{
+				TheBots->OnEvent(EVENT_WEAPON_FIRED_ON_EMPTY, m_pPlayer);
+			}
+		}
+
+		Reload();
+#else
 		Reload();
 
 		if (!m_iClip)
@@ -86,6 +106,8 @@ void CXM1014::PrimaryAttack()
 		}
 
 		m_flNextPrimaryAttack = GetNextAttackDelay(1);
+#endif // #ifdef BUILD_LATEST_FIXES
+
 		return;
 	}
 
@@ -152,53 +174,9 @@ void CXM1014::PrimaryAttack()
 
 void CXM1014::Reload()
 {
-	if (m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType] <= 0 || m_iClip == iMaxClip())
-		return;
-
-	// don't reload until recoil is done
-	if (m_flNextPrimaryAttack > UTIL_WeaponTimeBase())
-		return;
-
-	// check to see if we're ready to reload
-	if (m_fInSpecialReload == 0)
+	if (!DefaultShotgunReload(XM1014_RELOAD, XM1014_START_RELOAD, 0.3f, 0.55f, "weapons/reload1.wav", "weapons/reload3.wav"))
 	{
-		m_pPlayer->SetAnimation(PLAYER_RELOAD);
-		SendWeaponAnim(XM1014_START_RELOAD, UseDecrement() != FALSE);
-
-		m_fInSpecialReload = 1;
-		m_flNextSecondaryAttack = m_flTimeWeaponIdle = m_pPlayer->m_flNextAttack = UTIL_WeaponTimeBase() + 0.55f;
-		m_flNextPrimaryAttack = GetNextAttackDelay(0.55);
-	}
-	else if (m_fInSpecialReload == 1)
-	{
-		if (m_flTimeWeaponIdle > UTIL_WeaponTimeBase())
-			return;
-
-		// was waiting for gun to move to side
-		m_fInSpecialReload = 2;
-
-		if (RANDOM_LONG(0, 1))
-			EMIT_SOUND_DYN(m_pPlayer->edict(), CHAN_ITEM, "weapons/reload1.wav", VOL_NORM, ATTN_NORM, 0, 85 + RANDOM_LONG(0, 31));
-		else
-			EMIT_SOUND_DYN(m_pPlayer->edict(), CHAN_ITEM, "weapons/reload3.wav", VOL_NORM, ATTN_NORM, 0, 85 + RANDOM_LONG(0, 31));
-
-		SendWeaponAnim(XM1014_RELOAD, UseDecrement());
-
-		m_flTimeWeaponIdle = m_flNextReload = UTIL_WeaponTimeBase() + 0.3f;
-	}
-	else
-	{
-		m_iClip++;
-
-#ifdef REGAMEDLL_ADD
-		if (refill_bpammo_weapons.value < 3.0f)
-#endif
-		{
-			m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType]--;
-			m_pPlayer->ammo_buckshot--;
-		}
-
-		m_fInSpecialReload = 1;
+		/* do nothing */
 	}
 }
 

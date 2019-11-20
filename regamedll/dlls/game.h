@@ -58,6 +58,8 @@ extern cvar_t fadetoblack;
 extern cvar_t fragsleft;
 extern cvar_t timeleft;
 extern cvar_t friendlyfire;
+extern cvar_t infiniteAmmo;
+extern cvar_t infiniteGrenades;
 extern cvar_t allowmonsters;
 extern cvar_t roundtime;
 extern cvar_t buytime;
@@ -150,14 +152,29 @@ extern cvar_t hostagehurtable;
 extern cvar_t roundover;
 extern cvar_t forcerespawn;
 extern cvar_t show_radioicon;
+extern cvar_t show_scenarioicon;
 extern cvar_t old_bomb_defused_sound;
 extern cvar_t item_staytime;
 extern cvar_t legacy_bombtarget_touch;
 extern cvar_t respawn_immunitytime;
+extern cvar_t respawn_immunity_effects;
 extern cvar_t kill_filled_spawn;
+extern cvar_t afk_bomb_drop_time;
+extern cvar_t buy_anywhere;
+extern cvar_t weapons_allow_map_placed;
 extern cvar_t allow_point_servercommand;
 extern cvar_t hullbounds_sets;
+extern cvar_t unduck_method;
+extern cvar_t ff_damage_reduction_bullets;
+extern cvar_t ff_damage_reduction_grenade;
+extern cvar_t ff_damage_reduction_grenade_self;
+extern cvar_t ff_damage_reduction_other;
+extern cvar_t radio_timeout;
+extern cvar_t radio_maxinround;
 
 #endif
+
+extern cvar_t scoreboard_showmoney;
+extern cvar_t scoreboard_showhealth;
 
 void GameDLLInit();

@@ -593,6 +593,8 @@ void EXT_FUNC CHalfLifeMultiplay::__API_HOOK(CleanUpMap)()
 #ifdef REGAMEDLL_FIXES
 	UTIL_RestartOther("trigger_once");
 	UTIL_RestartOther("func_wall_toggle");
+	UTIL_RestartOther("func_healthcharger");
+	UTIL_RestartOther("func_recharge");
 	UTIL_RestartOther("trigger_hurt");
 	UTIL_RestartOther("multisource");
 	UTIL_RestartOther("env_beam");
@@ -604,9 +606,23 @@ void EXT_FUNC CHalfLifeMultiplay::__API_HOOK(CleanUpMap)()
 	const int grenadesRemoveCount = 20;
 	UTIL_RemoveOther("grenade", grenadesRemoveCount);
 
+#ifndef REGAMEDLL_FIXES
 	// Remove defuse kit
 	// Old code only removed 4 kits and stopped.
 	UTIL_RemoveOther("item_thighpack");
+#else
+	// Don't remove level items
+	CItemThighPack *pDefuser = nullptr;
+
+	while ((pDefuser = UTIL_FindEntityByClassname(pDefuser, "item_thighpack")))
+	{
+		if (pDefuser->pev->spawnflags & SF_NORESPAWN)
+		{
+			pDefuser->SetThink(&CBaseEntity::SUB_Remove);
+			pDefuser->pev->nextthink = gpGlobals->time + 0.1;
+		}
+	}
+#endif
 
 #ifdef REGAMEDLL_FIXES
 	UTIL_RemoveOther("gib");
@@ -2220,7 +2236,7 @@ void CHalfLifeMultiplay::PickNextVIP()
 
 		while ((pEntity = UTIL_FindEntityByClassname(pEntity, "player")))
 		{
-			if (!FNullEnt(pEntity->edict()))
+			if (FNullEnt(pEntity->edict()))
 				break;
 
 			if (pEntity->IsDormant())
@@ -2258,7 +2274,7 @@ void CHalfLifeMultiplay::PickNextVIP()
 
 		while ((pEntity = UTIL_FindEntityByClassname(pEntity, "player")))
 		{
-			if (!FNullEnt(pEntity->edict()))
+			if (FNullEnt(pEntity->edict()))
 				break;
 
 			if (pEntity->IsDormant())
@@ -3243,7 +3259,7 @@ void CHalfLifeMultiplay::InitHUD(CBasePlayer *pl)
 
 	UpdateGameMode(pl);
 
-	if (!g_flWeaponCheat)
+	if (!CVAR_GET_FLOAT("sv_cheats"))
 	{
 		MESSAGE_BEGIN(MSG_ONE, gmsgViewMode, nullptr, pl->edict());
 		MESSAGE_END();
@@ -3344,7 +3360,11 @@ void CHalfLifeMultiplay::InitHUD(CBasePlayer *pl)
 			if (plr->pev->flags == FL_DORMANT)
 				continue;
 #endif
-			if (plr->pev->deadflag == DEAD_NO)
+			if (plr->pev->deadflag == DEAD_NO
+#ifdef BUILD_LATEST_FIXES
+				&& plr->m_iTeam == pl->m_iTeam
+#endif
+				)
 			{
 				MESSAGE_BEGIN(MSG_ONE, gmsgRadar, nullptr, pl->edict());
 					WRITE_BYTE(plr->entindex());
@@ -3354,6 +3374,21 @@ void CHalfLifeMultiplay::InitHUD(CBasePlayer *pl)
 				MESSAGE_END();
 			}
 		}
+
+#ifdef BUILD_LATEST
+		if (AreRunningBeta())
+		{
+			MESSAGE_BEGIN(MSG_ONE, gmsgHealthInfo, nullptr, pl->edict());
+				WRITE_BYTE(plr->entindex());
+				WRITE_LONG(plr->ShouldToShowHealthInfo(pl) ? plr->m_iClientHealth : -1 /* means that 'HP' field will be hidden */);
+			MESSAGE_END();
+
+			MESSAGE_BEGIN(MSG_ONE, gmsgAccount, nullptr, pl->edict());
+				WRITE_BYTE(plr->entindex());
+				WRITE_LONG(plr->ShouldToShowAccount(pl) ? plr->m_iAccount : -1 /* means that this 'Money' will be hidden */);
+			MESSAGE_END();
+		}
+#endif // BUILD_LATEST
 	}
 
 	auto SendMsgBombDrop = [&pl](const int flag, const Vector& pos)
@@ -3790,7 +3825,11 @@ void EXT_FUNC CHalfLifeMultiplay::__API_HOOK(PlayerKilled)(CBasePlayer *pVictim,
 				int iUserID = GETPLAYERUSERID(killer->edict());
 				if (iUserID != -1)
 				{
+#ifdef REGAMEDLL_FIXES
+					SERVER_COMMAND(UTIL_VarArgs("kick #%d \"For killing too many teammates\"\n", iUserID));
+#else
 					SERVER_COMMAND(UTIL_VarArgs("kick # %d\n", iUserID));
+#endif
 				}
 			}
 

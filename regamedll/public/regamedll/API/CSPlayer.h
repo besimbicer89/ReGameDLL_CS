@@ -31,9 +31,20 @@
 #include <API/CSPlayerItem.h>
 #include <API/CSPlayerWeapon.h>
 
+enum WeaponInfiniteAmmoMode
+{
+	WPNMODE_INFINITE_CLIP = 1,
+	WPNMODE_INFINITE_BPAMMO
+};
+
 class CCSPlayer: public CCSMonster {
 public:
-	CCSPlayer() : m_bForceShowMenu(false), m_flRespawnPending(0), m_flSpawnProtectionEndTime(0)
+	CCSPlayer() :
+		m_bForceShowMenu(false),
+		m_flRespawnPending(0),
+		m_flSpawnProtectionEndTime(0),
+		m_iWeaponInfiniteAmmo(0),
+		m_iWeaponInfiniteIds(0)
 	{
 		m_szModel[0] = '\0';
 	}
@@ -47,7 +58,7 @@ public:
 	virtual void GiveShield(bool bDeploy = true);
 	virtual void DropShield(bool bDeploy = true);
 	virtual void DropPlayerItem(const char *pszItemName);
-	virtual void RemoveShield();
+	virtual bool RemoveShield();
 	virtual void RemoveAllItems(bool bRemoveSuit);
 	virtual bool RemovePlayerItem(const char* pszItemName);
 	virtual void SetPlayerModel(bool bHasC4);
@@ -80,8 +91,14 @@ public:
 	virtual void ResetSequenceInfo();
 	virtual void StartDeathCam();
 	virtual bool RemovePlayerItemEx(const char* pszItemName, bool bRemoveAmmo);
- 	virtual void SetSpawnProtection(float flProtectionTime);
+	virtual void SetSpawnProtection(float flProtectionTime);
 	virtual void RemoveSpawnProtection();
+	virtual bool HintMessageEx(const char *pMessage, float duration = 6.0f, bool bDisplayIfPlayerDead = false, bool bOverride = false);
+
+	void Reset();
+
+	void OnSpawn();
+	void OnKilled();
 
 	CBasePlayer *BasePlayer() const;
 
@@ -94,12 +111,16 @@ public:
 	};
 
 	EProtectionState GetProtectionState() const;
+	bool CheckActivityInGame();
 
 public:
 	char m_szModel[32];
 	bool m_bForceShowMenu;
 	float m_flRespawnPending;
 	float m_flSpawnProtectionEndTime;
+	Vector m_vecOldvAngle;
+	int m_iWeaponInfiniteAmmo;
+	int m_iWeaponInfiniteIds;
 };
 
 // Inlines

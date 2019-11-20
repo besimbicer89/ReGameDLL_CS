@@ -39,12 +39,13 @@ const int MAX_MONEY_THRESHOLD   = 999999; // allowable money limit in the game t
 const int MAX_MOTD_CHUNK        = 60;
 const int MAX_MOTD_LENGTH       = 1536;	// (MAX_MOTD_CHUNK * 4)
 
-const float ITEM_RESPAWN_TIME   = 30;
-const float WEAPON_RESPAWN_TIME = 20;
-const float AMMO_RESPAWN_TIME   = 20;
-const float ROUND_RESPAWN_TIME  = 20;
-const float ROUND_BEGIN_DELAY   = 5;	// delay before beginning new round
-const float ITEM_KILL_DELAY     = 300;
+const float ITEM_RESPAWN_TIME   = 30.0f;
+const float WEAPON_RESPAWN_TIME = 20.0f;
+const float AMMO_RESPAWN_TIME   = 20.0f;
+const float ROUND_RESPAWN_TIME  = 20.0f;
+const float ROUND_BEGIN_DELAY   = 5.0f;	// delay before beginning new round
+const float ITEM_KILL_DELAY     = 300.0f;
+const float RADIO_TIMEOUT       = 1.5f;
 
 const int MAX_INTERMISSION_TIME = 120;	// longest the intermission can last, in seconds
 
@@ -325,6 +326,7 @@ public:
 	inline bool IsGameOver() const { return m_bGameOver; }
 	inline void SetGameOver() { m_bGameOver = true; }
 	static float GetItemKillDelay();
+	static float GetRadioTimeout();
 
 public:
 	BOOL m_bFreezePeriod;	// TRUE at beginning of round, set to FALSE when the period expires
@@ -334,6 +336,8 @@ public:
 	char *m_GameDesc;
 	bool m_bGameOver; // intermission or finale (deprecated name g_fGameOver)
 };
+
+#define GAMERULES_API_INTERFACE_VERSION "GAMERULES_API_INTERFACE_VERSION001"
 
 // CHalfLifeRules - rules for the single player Half-Life game.
 class CHalfLifeRules: public CGameRules
@@ -634,6 +638,8 @@ public:
 	float GetRoundRemainingTime() const { return m_iRoundTimeSecs - gpGlobals->time + m_fRoundStartTime; }
 	float GetRoundRemainingTimeReal() const;
 	float GetTimeLeft() const { return m_flTimeLimit - gpGlobals->time; }
+	float GetRoundElapsedTime() const { return gpGlobals->time - m_fRoundStartTime; }
+	float GetMapElapsedTime() const { return gpGlobals->time; }
 
 	BOOL TeamFull(int team_id);
 	BOOL TeamStacked(int newTeam_id, int curTeam_id);
@@ -667,6 +673,8 @@ public:
 	void TerminateRound(float tmDelay, int iWinStatus);
 	float GetRoundRespawnTime() const;
 	float GetRoundRestartDelay() const;
+
+	bool IsGameStarted() const { return m_bGameStarted; }
 
 	// has a style of gameplay when aren't any teams
 	bool IsFreeForAll() const;
@@ -879,6 +887,15 @@ inline float CGameRules::GetItemKillDelay()
 	return item_staytime.value;
 #else
 	return ITEM_KILL_DELAY;
+#endif
+}
+
+inline float CGameRules::GetRadioTimeout()
+{
+#ifdef REGAMEDLL_ADD
+	return radio_timeout.value;
+#else
+	return RADIO_TIMEOUT;
 #endif
 }
 

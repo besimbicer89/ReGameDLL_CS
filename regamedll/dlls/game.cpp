@@ -20,6 +20,8 @@ cvar_t fragsleft             = { "mp_fragsleft", "0", FCVAR_SERVER | FCVAR_UNLOG
 cvar_t timeleft              = { "mp_timeleft", "0", FCVAR_SERVER | FCVAR_UNLOGGED, 0.0f, nullptr };
 
 cvar_t friendlyfire          = { "mp_friendlyfire", "0", FCVAR_SERVER, 0.0f, nullptr };
+cvar_t infiniteAmmo          = { "mp_infinite_ammo", "0", FCVAR_SERVER, 0.0f, nullptr };
+cvar_t infiniteGrenades      = { "mp_infinite_grenades", "0", FCVAR_SERVER, 0.0f, nullptr };
 cvar_t allowmonsters         = { "mp_allowmonsters", "0", FCVAR_SERVER, 0.0f, nullptr };
 cvar_t roundtime             = { "mp_roundtime", "5", FCVAR_SERVER, 0.0f, nullptr };
 cvar_t buytime               = { "mp_buytime", "1.5", FCVAR_SERVER, 0.0f, nullptr };
@@ -109,18 +111,35 @@ cvar_t fraglimit             = { "mp_fraglimit", "0", FCVAR_SERVER, 0.0f, nullpt
 cvar_t round_restart_delay   = { "mp_round_restart_delay", "5", FCVAR_SERVER, 0.0f, nullptr };
 cvar_t showtriggers          = { "showtriggers", "0", 0, 0.0f, nullptr }; // debug cvar shows triggers
                                                                           // TODO: Maybe it's better to register in the engine?
-cvar_t hostagehurtable         = { "mp_hostage_hurtable", "1", FCVAR_SERVER, 1.0f, nullptr };
-cvar_t roundover               = { "mp_roundover", "0", FCVAR_SERVER, 0.0f, nullptr };
-cvar_t forcerespawn            = { "mp_forcerespawn", "0", FCVAR_SERVER, 0.0f, nullptr };
-cvar_t show_radioicon          = { "mp_show_radioicon", "1", FCVAR_SERVER, 1.0f, nullptr };
-cvar_t old_bomb_defused_sound  = { "mp_old_bomb_defused_sound", "1", FCVAR_SERVER, 1.0f, nullptr };
-cvar_t item_staytime           = { "mp_item_staytime", "300", FCVAR_SERVER, 300.0f, nullptr };
-cvar_t legacy_bombtarget_touch = { "mp_legacy_bombtarget_touch", "1", FCVAR_SERVER, 1.0f, nullptr };
-cvar_t respawn_immunitytime    = { "mp_respawn_immunitytime", "0", FCVAR_SERVER, 0.0f, nullptr };
-cvar_t kill_filled_spawn       = { "mp_kill_filled_spawn", "1", FCVAR_SERVER, 0.0f, nullptr };
+cvar_t hostagehurtable           = { "mp_hostage_hurtable", "1", FCVAR_SERVER, 1.0f, nullptr };
+cvar_t roundover                 = { "mp_roundover", "0", FCVAR_SERVER, 0.0f, nullptr };
+cvar_t forcerespawn              = { "mp_forcerespawn", "0", FCVAR_SERVER, 0.0f, nullptr };
+cvar_t show_radioicon            = { "mp_show_radioicon", "1", 0, 1.0f, nullptr };
+cvar_t show_scenarioicon         = { "mp_show_scenarioicon", "0", FCVAR_SERVER, 0.0f, nullptr };
+cvar_t old_bomb_defused_sound    = { "mp_old_bomb_defused_sound", "1", 0, 1.0f, nullptr };
+cvar_t item_staytime             = { "mp_item_staytime", "300", FCVAR_SERVER, 300.0f, nullptr };
+cvar_t legacy_bombtarget_touch   = { "mp_legacy_bombtarget_touch", "1", 0, 1.0f, nullptr };
+cvar_t respawn_immunitytime      = { "mp_respawn_immunitytime", "0", FCVAR_SERVER, 0.0f, nullptr };
+cvar_t respawn_immunity_effects  = { "mp_respawn_immunity_effects", "1", FCVAR_SERVER, 0.0f, nullptr };
+cvar_t kill_filled_spawn         = { "mp_kill_filled_spawn", "1", 0, 0.0f, nullptr };
+cvar_t afk_bomb_drop_time        = { "mp_afk_bomb_drop_time", "0", FCVAR_SERVER, 0.0f, nullptr };
+cvar_t buy_anywhere              = { "mp_buy_anywhere", "0", FCVAR_SERVER, 0.0f, nullptr };
+cvar_t weapons_allow_map_placed  = { "mp_weapons_allow_map_placed", "1", FCVAR_SERVER, 0.0f, nullptr };
 
 cvar_t allow_point_servercommand = { "mp_allow_point_servercommand", "0", 0, 0.0f, nullptr };
 cvar_t hullbounds_sets           = { "mp_hullbounds_sets", "1", 0, 0.0f, nullptr };
+cvar_t unduck_method             = { "mp_unduck_method", "0", 0, 0.0f, nullptr };
+
+cvar_t scoreboard_showmoney      = { "mp_scoreboard_showmoney", "3", FCVAR_SERVER, 0.0f, nullptr };
+cvar_t scoreboard_showhealth     = { "mp_scoreboard_showhealth", "3", FCVAR_SERVER, 0.0f, nullptr };
+
+cvar_t ff_damage_reduction_bullets      = { "ff_damage_reduction_bullets",      "0.35", FCVAR_SERVER, 0.0f, nullptr };
+cvar_t ff_damage_reduction_grenade      = { "ff_damage_reduction_grenade",      "0.25", FCVAR_SERVER, 0.0f, nullptr };
+cvar_t ff_damage_reduction_grenade_self = { "ff_damage_reduction_grenade_self", "1",    FCVAR_SERVER, 0.0f, nullptr };
+cvar_t ff_damage_reduction_other        = { "ff_damage_reduction_other",        "0.25", FCVAR_SERVER, 0.0f, nullptr };
+
+cvar_t radio_timeout           = { "mp_radio_timeout", "1.5", FCVAR_SERVER, 1.5f, nullptr };
+cvar_t radio_maxinround        = { "mp_radio_maxinround", "60", FCVAR_SERVER, 60.0f, nullptr };
 
 void GameDLL_Version_f()
 {
@@ -154,6 +173,12 @@ void GameDLL_EndRound_f()
 	CSGameRules()->OnRoundEnd_Intercept(WINSTATUS_DRAW, ROUND_END_DRAW, CSGameRules()->GetRoundRestartDelay());
 }
 
+void GameDLL_SwapTeams_f()
+{
+	CSGameRules()->SwapAllPlayers();
+	CVAR_SET_FLOAT("sv_restartround", 1.0);
+}
+
 #endif // REGAMEDLL_ADD
 
 void EXT_FUNC GameDLLInit()
@@ -171,6 +196,12 @@ void EXT_FUNC GameDLLInit()
 	CVAR_REGISTER(&displaysoundlist);
 	CVAR_REGISTER(&timelimit);
 	CVAR_REGISTER(&friendlyfire);
+
+#ifdef BUILD_LATEST
+	CVAR_REGISTER(&infiniteAmmo);
+	CVAR_REGISTER(&infiniteGrenades);
+#endif
+
 	CVAR_REGISTER(&flashlight);
 	CVAR_REGISTER(&decalfrequency);
 
@@ -213,6 +244,14 @@ void EXT_FUNC GameDLLInit()
 	CVAR_REGISTER(&fragsleft);
 	CVAR_REGISTER(&timeleft);
 	CVAR_REGISTER(&humans_join_team);
+
+#ifdef BUILD_LATEST
+	if (AreRunningBeta())
+	{
+		CVAR_REGISTER(&scoreboard_showhealth);
+		CVAR_REGISTER(&scoreboard_showmoney);
+	}
+#endif
 
 // Remove unused cvars
 #ifndef REGAMEDLL_FIXES
@@ -266,6 +305,7 @@ void EXT_FUNC GameDLLInit()
 
 	ADD_SERVER_COMMAND("game", GameDLL_Version_f);
 	ADD_SERVER_COMMAND("endround", GameDLL_EndRound_f);
+	ADD_SERVER_COMMAND("mp_swapteams", GameDLL_SwapTeams_f);
 
 	CVAR_REGISTER(&game_version);
 	CVAR_REGISTER(&maxmoney);
@@ -286,13 +326,32 @@ void EXT_FUNC GameDLLInit()
 	CVAR_REGISTER(&roundover);
 	CVAR_REGISTER(&forcerespawn);
 	CVAR_REGISTER(&show_radioicon);
+
+	if (!AreRunningCZero())
+	{
+		CVAR_REGISTER(&show_scenarioicon);
+	}
+	
 	CVAR_REGISTER(&old_bomb_defused_sound);
 	CVAR_REGISTER(&item_staytime);
 	CVAR_REGISTER(&legacy_bombtarget_touch);
 	CVAR_REGISTER(&respawn_immunitytime);
+	CVAR_REGISTER(&respawn_immunity_effects);
 	CVAR_REGISTER(&kill_filled_spawn);
+	CVAR_REGISTER(&afk_bomb_drop_time);
+	CVAR_REGISTER(&buy_anywhere);
 	CVAR_REGISTER(&allow_point_servercommand);
 	CVAR_REGISTER(&hullbounds_sets);
+	CVAR_REGISTER(&unduck_method);
+	CVAR_REGISTER(&weapons_allow_map_placed);
+
+	CVAR_REGISTER(&ff_damage_reduction_bullets);
+	CVAR_REGISTER(&ff_damage_reduction_grenade);
+	CVAR_REGISTER(&ff_damage_reduction_grenade_self);
+	CVAR_REGISTER(&ff_damage_reduction_other);
+
+	CVAR_REGISTER(&radio_timeout);
+	CVAR_REGISTER(&radio_maxinround);
 
 	// print version
 	CONSOLE_ECHO("ReGameDLL version: " APP_VERSION "\n");
@@ -309,7 +368,7 @@ void EXT_FUNC GameDLLInit()
 
 #ifdef REGAMEDLL_ADD
 	// execute initial pre-configurations
-	SERVER_COMMAND("exec game.cfg\n");
+	SERVER_COMMAND("exec game_init.cfg\n");
 	SERVER_EXECUTE();
 #endif
 

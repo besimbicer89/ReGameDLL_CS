@@ -203,40 +203,7 @@ EXT_FUNC bool CCSPlayer::RemovePlayerItemEx(const char* pszItemName, bool bRemov
 
 	else if (FStrEq(pszItemName, "weapon_shield"))
 	{
-		if (!pPlayer->HasShield())
-			return false;
-
-		bool bIsProtectedShield = pPlayer->IsProtectedByShield();
-		pPlayer->RemoveShield();
-
-		CBasePlayerWeapon *pWeapon = static_cast<CBasePlayerWeapon *>(pPlayer->m_pActiveItem);
-		if (pWeapon)
-		{
-			if (!pWeapon->CanHolster())
-				return false;
-
-			if (pWeapon->m_iId == WEAPON_HEGRENADE || pWeapon->m_iId == WEAPON_FLASHBANG || pWeapon->m_iId == WEAPON_SMOKEGRENADE)
-			{
-				if (pPlayer->m_rgAmmo[pWeapon->m_iPrimaryAmmoType] <= 0)
-					g_pGameRules->GetNextBestWeapon(pPlayer, pWeapon);
-			}
-
-			if (pWeapon->m_flStartThrow != 0.0f)
-				pWeapon->Holster();
-
-			if (pPlayer->IsReloading())
-			{
-				pWeapon->m_fInReload = FALSE;
-				pPlayer->m_flNextAttack = 0;
-			}
-
-			if (bIsProtectedShield)
-				pWeapon->SecondaryAttack();
-
-			pWeapon->Deploy();
-		}
-
-		return true;
+		return RemoveShield();
 	}
 
 	auto pItem = GetItemByName(pszItemName);
@@ -262,6 +229,11 @@ EXT_FUNC bool CCSPlayer::RemovePlayerItemEx(const char* pszItemName, bool bRemov
 
 		if (pPlayer->RemovePlayerItem(pItem)) {
 			pPlayer->pev->weapons &= ~(1 << pItem->m_iId);
+			// No more weapon
+			if ((pPlayer->pev->weapons & ~(1 << WEAPON_SUIT)) == 0) {
+				pPlayer->m_iHideHUD |= HIDEHUD_WEAPONS;
+			}
+
 			pItem->Kill();
 
 			if (!pPlayer->m_rgpPlayerItems[PRIMARY_WEAPON_SLOT]) {
@@ -293,6 +265,7 @@ EXT_FUNC CBaseEntity *CCSPlayer::GiveNamedItemEx(const char *pszName)
 		}
 	} else if (FStrEq(pszName, "weapon_shield")) {
 		pPlayer->DropPrimary();
+		pPlayer->DropPlayerItem("weapon_elite");
 		pPlayer->GiveShield();
 		return nullptr;
 	}
@@ -340,9 +313,45 @@ EXT_FUNC void CCSPlayer::DropPlayerItem(const char *pszItemName)
 	BasePlayer()->DropPlayerItem(pszItemName);
 }
 
-EXT_FUNC void CCSPlayer::RemoveShield()
+EXT_FUNC bool CCSPlayer::RemoveShield()
 {
-	BasePlayer()->RemoveShield();
+	CBasePlayer *pPlayer = BasePlayer();
+
+	if (!pPlayer->HasShield())
+		return false;
+
+	bool bIsProtectedShield = pPlayer->IsProtectedByShield();
+	pPlayer->RemoveShield();
+
+	CBasePlayerWeapon *pWeapon = static_cast<CBasePlayerWeapon *>(pPlayer->m_pActiveItem);
+	if (pWeapon && pWeapon->IsWeapon())
+	{
+		if (!pWeapon->CanHolster())
+			return false;
+
+		if (pWeapon->m_iId == WEAPON_HEGRENADE || pWeapon->m_iId == WEAPON_FLASHBANG || pWeapon->m_iId == WEAPON_SMOKEGRENADE)
+		{
+			if (pPlayer->m_rgAmmo[pWeapon->m_iPrimaryAmmoType] <= 0)
+				g_pGameRules->GetNextBestWeapon(pPlayer, pWeapon);
+		}
+
+		if (pWeapon->m_flStartThrow != 0.0f)
+			pWeapon->Holster();
+
+		if (pPlayer->IsReloading())
+		{
+			pWeapon->m_fInReload = FALSE;
+			pPlayer->m_flNextAttack = 0;
+		}
+
+		if (bIsProtectedShield)
+			pWeapon->SecondaryAttack();
+
+		if (!pWeapon->Deploy())
+			return false;
+	}
+
+	return true;
 }
 
 EXT_FUNC void CCSPlayer::RemoveAllItems(bool bRemoveSuit)
@@ -498,4 +507,54 @@ EXT_FUNC void CCSPlayer::SetSpawnProtection(float flProtectionTime)
 EXT_FUNC void CCSPlayer::RemoveSpawnProtection()
 {
 	BasePlayer()->RemoveSpawnProtection();
+}
+
+EXT_FUNC bool CCSPlayer::HintMessageEx(const char *pMessage, float duration, bool bDisplayIfPlayerDead, bool bOverride)
+{
+	return BasePlayer()->HintMessageEx(pMessage, duration, bDisplayIfPlayerDead, bOverride);
+}
+
+EXT_FUNC bool CCSPlayer::CheckActivityInGame()
+{
+	const CBasePlayer* pPlayer = BasePlayer();
+
+	const float deltaYaw = (m_vecOldvAngle.y - pPlayer->pev->v_angle.y);
+	const float deltaPitch = (m_vecOldvAngle.x - pPlayer->pev->v_angle.x);
+
+	m_vecOldvAngle = pPlayer->pev->v_angle;
+
+	return (fabs(deltaYaw) >= 0.1f && fabs(deltaPitch) >= 0.1f);
+}
+
+void CCSPlayer::Reset()
+{
+	m_szModel[0] = '\0';
+
+	m_bForceShowMenu = false;
+	m_flRespawnPending =
+		m_flSpawnProtectionEndTime = 0.0f;
+
+	m_vecOldvAngle = g_vecZero;
+	m_iWeaponInfiniteAmmo = 0;
+	m_iWeaponInfiniteIds = 0;
+}
+
+void CCSPlayer::OnSpawn()
+{
+	m_flRespawnPending = 0.0f;
+}
+
+void CCSPlayer::OnKilled()
+{
+#ifdef REGAMEDLL_ADD
+	if (forcerespawn.value > 0)
+	{
+		m_flRespawnPending = gpGlobals->time + forcerespawn.value;
+	}
+
+	if (GetProtectionState() == ProtectionSt_Active)
+	{
+		BasePlayer()->RemoveSpawnProtection();
+	}
+#endif
 }

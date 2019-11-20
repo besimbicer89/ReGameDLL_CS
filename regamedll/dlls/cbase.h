@@ -151,11 +151,13 @@ public:
 	void SUB_UseTargets(CBaseEntity *pActivator, USE_TYPE useType, float value);
 	bool Intersects(CBaseEntity *pOther);
 	bool Intersects(const Vector &mins, const Vector &maxs);
+	bool CanTakeHealth(float flHealth = 0.0f) const;
 	void MakeDormant();
 
 	// This entity's classname.
 	const char *GetClassname() const { return pev->classname.str(); }
 
+	bool IsProxy()   const { return (pev->flags & FL_PROXY) == FL_PROXY; }
 	bool IsDormant() const { return (pev->flags & FL_DORMANT) == FL_DORMANT; }
 	BOOL IsLockedByMaster() { return FALSE; }
 
@@ -610,6 +612,7 @@ EXT_FUNC void DispatchObjectCollsionBox(edict_t *pent);
 EXT_FUNC void SaveWriteFields(SAVERESTOREDATA *pSaveData, const char *pname, void *pBaseData, TYPEDESCRIPTION *pFields, int fieldCount);
 EXT_FUNC void SaveReadFields(SAVERESTOREDATA *pSaveData, const char *pname, void *pBaseData, TYPEDESCRIPTION *pFields, int fieldCount);
 EXT_FUNC void OnFreeEntPrivateData(edict_t *pEnt);
+EXT_FUNC void OnGameShutdown();
 
 void SetObjectCollisionBox(entvars_t *pev);
 CBaseEntity *FindGlobalEntity(string_t classname, string_t globalname);

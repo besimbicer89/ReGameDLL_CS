@@ -207,7 +207,6 @@ inline const char *GetTeamName(int team)
 	}
 }
 
-extern int giPrecacheGrunt;
 extern int gmsgWeapPickup;
 extern int gmsgHudText;
 extern int gmsgHudTextPro;
@@ -289,3 +288,5 @@ extern int gmsgBotProgress;
 extern int gmsgBrass;
 extern int gmsgFog;
 extern int gmsgShowTimer;
+extern int gmsgAccount;
+extern int gmsgHealthInfo;

@@ -1,6 +1,5 @@
 #include "precompiled.h"
 
-int giPrecacheGrunt = 0;
 int gmsgWeapPickup = 0;
 int gmsgHudText = 0;
 int gmsgHudTextPro = 0;
@@ -82,7 +81,8 @@ int gmsgBotProgress = 0;
 int gmsgBrass = 0;
 int gmsgFog = 0;
 int gmsgShowTimer = 0;
-
+int gmsgAccount = 0;
+int gmsgHealthInfo = 0;
 bool g_bClientPrintEnable = true;
 
 char *sPlayerModelFiles[] =
@@ -223,6 +223,14 @@ void LinkUserMessages()
 	gmsgFog           = REG_USER_MSG("Fog", 7);
 	gmsgShowTimer     = REG_USER_MSG("ShowTimer", 0);
 	gmsgHudTextArgs   = REG_USER_MSG("HudTextArgs", -1);
+
+#ifdef BUILD_LATEST
+	if (AreRunningBeta())
+	{
+		gmsgAccount       = REG_USER_MSG("Account", 5);
+		gmsgHealthInfo    = REG_USER_MSG("HealthInfo", 5);
+	}
+#endif
 }
 
 void WriteSigonMessages()
@@ -557,8 +565,16 @@ void ProcessKickVote(CBasePlayer *pVotingPlayer, CBasePlayer *pKickPlayer)
 
 	if (iVotesNeeded >= int(fKickPercent))
 	{
+#ifdef REGAMEDLL_FIXES
+		SERVER_COMMAND(UTIL_VarArgs("kick #%d \"You have been voted off.\"\n", iVoteID));
+		SERVER_EXECUTE();
+#endif
+
 		UTIL_ClientPrintAll(HUD_PRINTCENTER, "#Game_kicked", STRING(pKickPlayer->pev->netname));
+
+#ifndef REGAMEDLL_FIXES
 		SERVER_COMMAND(UTIL_VarArgs("kick # %d\n", iVoteID));
+#endif
 		pTempEntity = nullptr;
 
 		while ((pTempEntity = UTIL_FindEntityByClassname(pTempEntity, "player")))
@@ -720,6 +736,10 @@ void EXT_FUNC ClientPutInServer(edict_t *pEntity)
 		if (*pApersand == '%')
 			*pApersand = ' ';
 	}
+
+#ifdef REGAMEDLL_API
+	pPlayer->CSPlayer()->Reset();
+#endif
 
 	UTIL_ClientPrintAll(HUD_PRINTNOTIFY, "#Game_connected", (sName[0] != '\0') ? sName : "<unconnected>");
 }
@@ -984,17 +1004,23 @@ void Host_Say(edict_t *pEntity, BOOL teamonly)
 
 	MESSAGE_END();
 
-	// echo to server console
-	if (pszConsoleFormat)
+#ifdef REGAMEDLL_FIXES
+	// don't to type for listenserver
+	if (IS_DEDICATED_SERVER())
+#endif
 	{
-		if (placeName && consoleUsesPlaceName)
-			SERVER_PRINT(UTIL_VarArgs(pszConsoleFormat, STRING(pPlayer->pev->netname), placeName, text));
+		// echo to server console
+		if (pszConsoleFormat)
+		{
+			if (placeName && consoleUsesPlaceName)
+				SERVER_PRINT(UTIL_VarArgs(pszConsoleFormat, STRING(pPlayer->pev->netname), placeName, text));
+			else
+				SERVER_PRINT(UTIL_VarArgs(pszConsoleFormat, STRING(pPlayer->pev->netname), text));
+		}
 		else
-			SERVER_PRINT(UTIL_VarArgs(pszConsoleFormat, STRING(pPlayer->pev->netname), text));
-	}
-	else
-	{
-		SERVER_PRINT(text);
+		{
+			SERVER_PRINT(text);
+		}
 	}
 
 	if (logmessages.value)
@@ -1426,6 +1452,10 @@ void BuyItem(CBasePlayer *pPlayer, int iSlot)
 				EMIT_SOUND(ENT(pPlayer->pev), CHAN_ITEM, "items/kevlar.wav", VOL_NORM, ATTN_NORM);
 #endif
 				pPlayer->SendItemStatus();
+
+#ifdef BUILD_LATEST
+				pPlayer->SetScoreboardAttributes();
+#endif
 			}
 			break;
 		}
@@ -1519,8 +1549,13 @@ CBaseEntity *EXT_FUNC __API_HOOK(BuyWeaponByWeaponID)(CBasePlayer *pPlayer, Weap
 	pPlayer->AddAccount(-info->cost, RT_PLAYER_BOUGHT_SOMETHING);
 
 #ifdef REGAMEDLL_ADD
-	if (refill_bpammo_weapons.value > 1 && info->ammoType >= AMMO_338MAGNUM && info->ammoType <= AMMO_9MM) {
-		pPlayer->m_rgAmmo[info->ammoType] = info->maxRounds;
+	if (refill_bpammo_weapons.value > 1)
+	{
+		CBasePlayerItem *pItem = static_cast<CBasePlayerItem *>(pEntity);
+
+		if (pItem) {
+			pPlayer->GiveAmmo(pItem->iMaxAmmo1(), pItem->pszAmmo1(), pItem->iMaxAmmo1());
+		}
 	}
 #endif
 
@@ -1751,16 +1786,25 @@ BOOL EXT_FUNC __API_HOOK(HandleMenu_ChooseTeam)(CBasePlayer *pPlayer, int slot)
 			{
 				team = (RANDOM_LONG(0, 1) == 0) ? TERRORIST : CT;
 
-				if (!UTIL_KickBotFromTeam(team))
+				bool atLeastOneLeft = UTIL_KickBotFromTeam(team);
+
+				if (!atLeastOneLeft)
 				{
 					// no bots on that team, try the other
 					team = (team == CT) ? TERRORIST : CT;
 
-					if (!UTIL_KickBotFromTeam(team))
+					atLeastOneLeft = UTIL_KickBotFromTeam(team);
+
+					if (!atLeastOneLeft)
 					{
 						// couldn't kick any bots, fail
 						team = UNASSIGNED;
 					}
+				}
+
+				if (atLeastOneLeft)
+				{
+					CONSOLE_ECHO("These bots has left the game to make room for human players.\n");
 				}
 			}
 		}
@@ -1798,7 +1842,11 @@ BOOL EXT_FUNC __API_HOOK(HandleMenu_ChooseTeam)(CBasePlayer *pPlayer, int slot)
 			}
 
 			pPlayer->RemoveAllItems(TRUE);
+
+#ifndef REGAMEDLL_FIXES
+			// NOTE: It is already does reset inside RemoveAllItems
 			pPlayer->m_bHasC4 = false;
+#endif
 
 #ifdef REGAMEDLL_FIXES
 			if (pPlayer->m_iTeam != SPECTATOR)
@@ -1889,7 +1937,10 @@ BOOL EXT_FUNC __API_HOOK(HandleMenu_ChooseTeam)(CBasePlayer *pPlayer, int slot)
 		if (cv_bot_auto_vacate.value > 0 && !pPlayer->IsBot())
 		{
 			if (UTIL_KickBotFromTeam(team))
+			{
+				CONSOLE_ECHO("These bots has left the game to make room for human players.\n");
 				madeRoom = true;
+			}
 		}
 
 		if (!madeRoom)
@@ -2057,7 +2108,7 @@ void Radio1(CBasePlayer *pPlayer, int slot)
 		return;
 
 	pPlayer->m_iRadioMessages--;
-	pPlayer->m_flRadioTime = gpGlobals->time + 1.5f;
+	pPlayer->m_flRadioTime = gpGlobals->time + CGameRules::GetRadioTimeout();
 
 	switch (slot)
 	{
@@ -2096,7 +2147,7 @@ void Radio2(CBasePlayer *pPlayer, int slot)
 		return;
 
 	pPlayer->m_iRadioMessages--;
-	pPlayer->m_flRadioTime = gpGlobals->time + 1.5f;
+	pPlayer->m_flRadioTime = gpGlobals->time + CGameRules::GetRadioTimeout();
 
 	switch (slot)
 	{
@@ -2135,7 +2186,7 @@ void Radio3(CBasePlayer *pPlayer, int slot)
 		return;
 
 	pPlayer->m_iRadioMessages--;
-	pPlayer->m_flRadioTime = gpGlobals->time + 1.5f;
+	pPlayer->m_flRadioTime = gpGlobals->time + CGameRules::GetRadioTimeout();
 
 	switch (slot)
 	{
@@ -2947,43 +2998,67 @@ void EXT_FUNC InternalCommand(edict_t *pEntity, const char *pcmd, const char *pa
 			}
 			case Menu_BuyPistol:
 			{
-				if (canOpenOldMenu()) {
+				if (canOpenOldMenu())
+				{
 					BuyPistol(pPlayer, slot);
+#ifdef REGAMEDLL_FIXES
+					pPlayer->BuildRebuyStruct();
+#endif
 				}
 				break;
 			}
 			case Menu_BuyShotgun:
 			{
-				if (canOpenOldMenu()) {
+				if (canOpenOldMenu())
+				{
 					BuyShotgun(pPlayer, slot);
+#ifdef REGAMEDLL_FIXES
+					pPlayer->BuildRebuyStruct();
+#endif
 				}
 				break;
 			}
 			case Menu_BuySubMachineGun:
 			{
-				if (canOpenOldMenu()) {
+				if (canOpenOldMenu())
+				{
 					BuySubMachineGun(pPlayer, slot);
+#ifdef REGAMEDLL_FIXES
+					pPlayer->BuildRebuyStruct();
+#endif
 				}
 				break;
 			}
 			case Menu_BuyRifle:
 			{
-				if (canOpenOldMenu()) {
+				if (canOpenOldMenu())
+				{
 					BuyRifle(pPlayer, slot);
+#ifdef REGAMEDLL_FIXES
+					pPlayer->BuildRebuyStruct();
+#endif
 				}
 				break;
 			}
 			case Menu_BuyMachineGun:
 			{
-				if (canOpenOldMenu()) {
+				if (canOpenOldMenu())
+				{
 					BuyMachineGun(pPlayer, slot);
+#ifdef REGAMEDLL_FIXES
+					pPlayer->BuildRebuyStruct();
+#endif
 				}
 				break;
 			}
 			case Menu_BuyItem:
 			{
-				if (canOpenOldMenu()) {
+				if (canOpenOldMenu())
+				{
 					BuyItem(pPlayer, slot);
+#ifdef REGAMEDLL_FIXES
+					pPlayer->BuildRebuyStruct();
+#endif
 				}
 				break;
 			}
@@ -3079,7 +3154,11 @@ void EXT_FUNC InternalCommand(edict_t *pEntity, const char *pcmd, const char *pa
 	}
 	else if (FStrEq(pcmd, "become_vip"))
 	{
-		if (pPlayer->m_iJoiningState != JOINED || pPlayer->m_iTeam != CT)
+		if (pPlayer->m_iJoiningState != JOINED || pPlayer->m_iTeam != CT
+#ifdef REGAMEDLL_FIXES
+			|| !CSGameRules()->m_bMapHasVIPSafetyZone
+#endif
+			)
 		{
 			ClientPrint(pPlayer->pev, HUD_PRINTCENTER, "#Command_Not_Available");
 			return;
@@ -3128,6 +3207,46 @@ void EXT_FUNC InternalCommand(edict_t *pEntity, const char *pcmd, const char *pa
 			pPlayer->Observer_FindNextPlayer(false, parg1);
 		}
 	}
+#ifdef REGAMEDLL_FIXES
+	else if (FStrEq(pcmd, "cl_setautobuy"))
+	{
+		if (pPlayer->pev->deadflag != DEAD_NO && pPlayer->m_autoBuyString[0] != '\0')
+			return;
+		
+		pPlayer->ClearAutoBuyData();
+
+		for (int i = 1; i < CMD_ARGC_(); i++)
+		{
+			pPlayer->AddAutoBuyData(CMD_ARGV_(i));
+		}
+
+		if (pPlayer->m_signals.GetState() & SIGNAL_BUY)
+		{
+			bool oldval = g_bClientPrintEnable;
+			g_bClientPrintEnable = false;
+			pPlayer->AutoBuy();
+			g_bClientPrintEnable = oldval;
+		}
+	}
+	else if (FStrEq(pcmd, "cl_setrebuy"))
+	{
+		if (pPlayer->pev->deadflag != DEAD_NO && pPlayer->m_rebuyString)
+			return;
+		
+		if (CMD_ARGC_() == 2)
+		{
+			pPlayer->InitRebuyData(parg1);
+
+			if (pPlayer->m_signals.GetState() & SIGNAL_BUY)
+			{
+				bool oldval = g_bClientPrintEnable;
+				g_bClientPrintEnable = false;
+				pPlayer->Rebuy();
+				g_bClientPrintEnable = oldval;
+			}
+		}
+	}
+#endif
 	else
 	{
 		if (g_pGameRules->ClientCommand_DeadOrAlive(GetClassPtr<CCSPlayer>((CBasePlayer *)pev), pcmd))
@@ -3282,7 +3401,7 @@ void EXT_FUNC InternalCommand(edict_t *pEntity, const char *pcmd, const char *pa
 			else if (FStrEq(pcmd, "fov"))
 			{
 #if 0
-				if (g_flWeaponCheat && CMD_ARGC() > 1)
+				if (CVAR_GET_FLOAT("sv_cheats") != 0.0f && CMD_ARGC() > 1)
 					GetClassPtr<CCSPlayer>((CBasePlayer *)pev)->m_iFOV = Q_atoi(CMD_ARGV(1));
 				else
 					CLIENT_PRINTF(pEntity, print_console, UTIL_VarArgs("\"fov\" is \"%d\"\n", int(GetClassPtr<CCSPlayer>((CBasePlayer *)pev)->m_iFOV)));
@@ -3361,6 +3480,8 @@ void EXT_FUNC InternalCommand(edict_t *pEntity, const char *pcmd, const char *pa
 					}
 				}
 			}
+#ifndef REGAMEDLL_FIXES
+			// Moved to above
 			else if (FStrEq(pcmd, "cl_setautobuy"))
 			{
 				pPlayer->ClearAutoBuyData();
@@ -3387,6 +3508,7 @@ void EXT_FUNC InternalCommand(edict_t *pEntity, const char *pcmd, const char *pa
 					g_bClientPrintEnable = oldval;
 				}
 			}
+#endif
 			else if (FStrEq(pcmd, "cl_autobuy"))
 			{
 				if (pPlayer->m_signals.GetState() & SIGNAL_BUY)
@@ -3411,6 +3533,23 @@ void EXT_FUNC InternalCommand(edict_t *pEntity, const char *pcmd, const char *pa
 			{
 				pPlayer->SmartRadio();
 			}
+#ifdef REGAMEDLL_ADD
+			else if (FStrEq(pcmd, "give"))
+			{
+				if (CVAR_GET_FLOAT("sv_cheats") != 0.0f && CMD_ARGC() > 1 && FStrnEq(parg1, "weapon_", sizeof("weapon_") - 1))
+				{
+					const auto pInfo = GetWeaponInfo(parg1);
+					if (pInfo)
+					{
+						if (pInfo->id != WEAPON_GLOCK && pInfo->id != WEAPON_C4 /* && pInfo->id != WEAPON_KNIFE */)
+						{
+							pPlayer->GiveNamedItemEx(pInfo->entityName);
+							pPlayer->GiveAmmo(pInfo->maxRounds, pInfo->ammoName2);
+						}
+					}
+				}
+			}
+#endif
 			else
 			{
 				if (HandleBuyAliasCommands(pPlayer, pcmd))
@@ -4036,9 +4175,6 @@ void ClientPrecache()
 	PRECACHE_SOUND("player/geiger2.wav");
 	PRECACHE_SOUND("player/geiger1.wav");
 
-	if (giPrecacheGrunt)
-		UTIL_PrecacheOther("enemy_terrorist");
-
 	g_iShadowSprite = PRECACHE_MODEL("sprites/shadow_circle.spr");
 
 	PRECACHE_MODEL("sprites/wall_puff1.spr");
@@ -4243,8 +4379,23 @@ bool CheckEntityRecentlyInPVS(int clientnum, int entitynum, float currenttime)
 
 BOOL EXT_FUNC AddToFullPack(struct entity_state_s *state, int e, edict_t *ent, edict_t *host, int hostflags, BOOL player, unsigned char *pSet)
 {
-	if ((ent->v.effects & EF_NODRAW) == EF_NODRAW && ent != host)
-		return FALSE;
+	if (ent != host)
+	{
+		if ((ent->v.effects & EF_NODRAW) == EF_NODRAW)
+			return FALSE;
+
+#ifdef REGAMEDLL_ADD
+		if (ent->v.owner == host)
+		{
+			// the owner can't see this entity
+			if ((ent->v.effects & EF_OWNER_NO_VISIBILITY) == EF_OWNER_NO_VISIBILITY)
+				return FALSE;
+		}
+		// no one can't see this entity except the owner
+		else if ((ent->v.effects & EF_OWNER_VISIBILITY) == EF_OWNER_VISIBILITY)
+			return FALSE;
+#endif
+	}
 
 	if (!ent->v.modelindex || !STRING(ent->v.model))
 		return FALSE;
@@ -4257,17 +4408,22 @@ BOOL EXT_FUNC AddToFullPack(struct entity_state_s *state, int e, edict_t *ent, e
 	if (CheckPlayerPVSLeafChanged(host, hostnum))
 		ResetPlayerPVS(host, hostnum);
 
-	if (ent != host)
+#ifdef REGAMEDLL_ADD
+	if ((ent->v.effects & EF_FORCEVISIBILITY) != EF_FORCEVISIBILITY)
+#endif
 	{
-		if (!CheckEntityRecentlyInPVS(hostnum, e, gpGlobals->time))
+		if (ent != host)
 		{
-			if (!ENGINE_CHECK_VISIBILITY(ent, pSet))
+			if (!CheckEntityRecentlyInPVS(hostnum, e, gpGlobals->time))
 			{
-				MarkEntityInPVS(hostnum, e, 0, false);
-				return FALSE;
-			}
+				if (!ENGINE_CHECK_VISIBILITY(ent, pSet))
+				{
+					MarkEntityInPVS(hostnum, e, 0, false);
+					return FALSE;
+				}
 
-			MarkEntityInPVS(hostnum, e, gpGlobals->time, true);
+				MarkEntityInPVS(hostnum, e, gpGlobals->time, true);
+			}
 		}
 	}
 
@@ -4320,6 +4476,9 @@ BOOL EXT_FUNC AddToFullPack(struct entity_state_s *state, int e, edict_t *ent, e
 	state->effects = ent->v.effects;
 
 #ifdef REGAMEDLL_ADD
+	// don't send unhandled custom bits to client
+	state->effects &= ~(EF_FORCEVISIBILITY | EF_OWNER_VISIBILITY | EF_OWNER_NO_VISIBILITY);
+
 	if  (ent->v.skin == CONTENTS_LADDER &&
 		(host->v.iuser3 & PLAYER_PREVENT_CLIMB) == PLAYER_PREVENT_CLIMB) {
 		state->skin = CONTENTS_EMPTY;

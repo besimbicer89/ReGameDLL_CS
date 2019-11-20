@@ -381,7 +381,7 @@ void CHostage::IdleThink()
 		return;
 	}
 
-	if (m_hTargetEnt && (m_bStuck && gpGlobals->time - m_flStuckTime > 5.0f || m_hTargetEnt->pev->deadflag != DEAD_NO))
+	if (m_hTargetEnt && ((m_bStuck && gpGlobals->time - m_flStuckTime > 5.0f) || m_hTargetEnt->pev->deadflag != DEAD_NO))
 	{
 		m_State = STAND;
 		m_hTargetEnt = nullptr;
@@ -854,7 +854,7 @@ void CHostage::ApplyHostagePenalty(CBasePlayer *pAttacker)
 		else if (pAttacker->m_iHostagesKilled >= iHostagePenalty)
 		{
 #ifdef REGAMEDLL_FIXES
-			SERVER_COMMAND(UTIL_VarArgs("kick #%d\n", GETPLAYERUSERID(pAttacker->edict())));
+			SERVER_COMMAND(UTIL_VarArgs("kick #%d \"For killing too many hostages\"\n", GETPLAYERUSERID(pAttacker->edict())));
 #else
 			CLIENT_COMMAND(pAttacker->edict(), "disconnect\n");
 #endif
