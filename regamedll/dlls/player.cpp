@@ -2063,6 +2063,7 @@ void EXT_FUNC CBasePlayer::__API_HOOK(Killed)(entvars_t *pevAttacker, int iGib)
 	pev->effects &= ~EF_DIMLIGHT;
 #endif
 
+#ifndef REGAMEDLL_ADD
 	if (fadetoblack.value == 0.0)
 	{
 		pev->iuser1 = OBS_CHASE_FREE;
@@ -2078,6 +2079,52 @@ void EXT_FUNC CBasePlayer::__API_HOOK(Killed)(entvars_t *pevAttacker, int iGib)
 	{
 		UTIL_ScreenFade(this, Vector(0, 0, 0), 3, 3, 255, (FFADE_OUT | FFADE_STAYOUT));
 	}
+#else
+	switch ((int)fadetoblack.value)
+	{
+	default:
+	{
+		pev->iuser1 = OBS_CHASE_FREE;
+		pev->iuser2 = ENTINDEX(edict());
+		pev->iuser3 = ENTINDEX(ENT(pevAttacker));
+
+		m_hObserverTarget = UTIL_PlayerByIndexSafe(pev->iuser3);
+
+		MESSAGE_BEGIN(MSG_ONE, gmsgADStop, nullptr, pev);
+		MESSAGE_END();
+
+		break;
+	}
+	case 1:
+	{
+		UTIL_ScreenFade(this, Vector(0, 0, 0), 3, 3, 255, (FFADE_OUT | FFADE_STAYOUT));
+		break;
+	}
+	case 2:
+	{
+		pev->iuser1 = OBS_CHASE_FREE;
+		pev->iuser2 = ENTINDEX(edict());
+		pev->iuser3 = ENTINDEX(ENT(pevAttacker));
+
+		m_hObserverTarget = UTIL_PlayerByIndexSafe(pev->iuser3);
+
+		MESSAGE_BEGIN(MSG_ONE, gmsgADStop, nullptr, pev);
+		MESSAGE_END();
+
+		for (int i = 1; i <= gpGlobals->maxClients; i++)
+		{
+			CBasePlayer* pObserver = UTIL_PlayerByIndex(i);
+
+			if (pObserver == this || (pObserver && pObserver->IsObservingPlayer(this)))
+			{
+				UTIL_ScreenFade(pObserver, Vector(0, 0, 0), 1, 4, 255, (FFADE_OUT));
+			}
+		}
+
+		break;
+	}
+	}
+#endif // REGAMEDLL_ADD
 
 	SetScoreboardAttributes();
 
@@ -2629,9 +2676,6 @@ void EXT_FUNC CBasePlayer::__API_HOOK(SetAnimation)(PLAYER_ANIM playerAnim)
 						animDesired = LookupActivity(ACT_DIE_BACKSHOT);
 						m_iThrowDirection = THROW_HITVEL;
 						break;
-					case 3:
-						animDesired = LookupActivity(ACT_DIESIMPLE);
-						break;
 					case 4:
 						animDesired = LookupActivity(ACT_DIEBACKWARD);
 						m_iThrowDirection = THROW_HITVEL;
@@ -2650,6 +2694,7 @@ void EXT_FUNC CBasePlayer::__API_HOOK(SetAnimation)(PLAYER_ANIM playerAnim)
 						animDesired = LookupActivity(ACT_DIE_HEADSHOT);
 						break;
 					default:
+						animDesired = LookupActivity(ACT_DIESIMPLE);
 						break;
 					}
 					break;
@@ -2702,11 +2747,10 @@ void EXT_FUNC CBasePlayer::__API_HOOK(SetAnimation)(PLAYER_ANIM playerAnim)
 					break;
 				}
 				default:
-				{
 					animDesired = LookupActivity(ACT_DIESIMPLE);
 					break;
-				}
 			}
+
 			if (pev->flags & FL_DUCKING)
 			{
 				animDesired = LookupSequence("crouch_die");
@@ -4301,7 +4345,7 @@ void EXT_FUNC CBasePlayer::__API_HOOK(PreThink)()
 #ifdef REGAMEDLL_FIXES
 		IsAlive() &&
 #endif
-		m_flIdleCheckTime <= (double)gpGlobals->time || m_flIdleCheckTime == 0.0f)
+		(m_flIdleCheckTime <= (double)gpGlobals->time || m_flIdleCheckTime == 0.0f))
 	{
 		// check every 5 seconds
 		m_flIdleCheckTime = gpGlobals->time + 5.0;
@@ -4319,7 +4363,7 @@ void EXT_FUNC CBasePlayer::__API_HOOK(PreThink)()
 		if (!IsBot() && flLastMove > CSGameRules()->m_fMaxIdlePeriod)
 		{
 			DropIdlePlayer("Player idle");
-			
+
 			m_fLastMovement = gpGlobals->time;
 		}
 #ifdef REGAMEDLL_ADD
@@ -4504,8 +4548,8 @@ void EXT_FUNC CBasePlayer::__API_HOOK(PreThink)()
 
 #ifdef REGAMEDLL_ADD
 	auto protectStateCurrent = CSPlayer()->GetProtectionState();
-	if (protectStateCurrent  == CCSPlayer::ProtectionSt_Expired ||
-		(protectStateCurrent == CCSPlayer::ProtectionSt_Active && (m_afButtonPressed & IN_ACTIVE)))
+	if (protectStateCurrent  == CCSPlayer::ProtectionSt_Expired || (respawn_immunity_force_unset.value &&
+		(protectStateCurrent == CCSPlayer::ProtectionSt_Active && (m_afButtonPressed & IN_ACTIVE))))
 	{
 		RemoveSpawnProtection();
 	}
@@ -5183,8 +5227,24 @@ void CBasePlayer::SetScoreAttrib(CBasePlayer *dest)
 		state |= SCORE_STATUS_VIP;
 
 #ifdef BUILD_LATEST
-	if (m_bHasDefuser)
-		state |= SCORE_STATUS_DEFKIT;
+
+#ifdef REGAMEDLL_FIXES
+	if (scoreboard_showdefkit.value)
+#endif
+	{
+		if (m_bHasDefuser)
+			state |= SCORE_STATUS_DEFKIT;
+	}
+
+#endif
+
+#ifdef REGAMEDLL_FIXES
+	// TODO: Remove these fixes when they are implemented on the client side
+	if (state & (SCORE_STATUS_BOMB | SCORE_STATUS_DEFKIT) && GetForceCamera(dest) != CAMERA_MODE_SPEC_ANYONE)
+	{
+		if (CSGameRules()->PlayerRelationship(this, dest) != GR_TEAMMATE)
+			state &= ~(SCORE_STATUS_BOMB | SCORE_STATUS_DEFKIT);
+	}
 #endif
 
 	if (gmsgScoreAttrib)
@@ -6799,7 +6859,7 @@ void CBasePlayer::SendHostageIcons()
 	if (hostagesCount > MAX_HOSTAGE_ICON)
 		hostagesCount = MAX_HOSTAGE_ICON;
 
-	char buf[16];
+	char buf[18];
 	Q_snprintf(buf, ARRAYSIZE(buf), "hostage%d", hostagesCount);
 
 	if (hostagesCount)
@@ -7206,7 +7266,12 @@ void EXT_FUNC CBasePlayer::__API_HOOK(UpdateClientData)()
 	}
 
 #ifdef BUILD_LATEST
-	if ((m_iTeam == CT || m_iTeam == TERRORIST) &&
+
+	if (
+#ifdef REGAMEDLL_FIXES
+		(scoreboard_showmoney.value != -1.0f || scoreboard_showhealth.value != -1.0f) &&
+#endif
+		(m_iTeam == CT || m_iTeam == TERRORIST) &&
 		(m_iLastAccount != m_iAccount || m_iLastClientHealth != m_iClientHealth || m_tmNextAccountHealthUpdate < gpGlobals->time))
 	{
 		m_tmNextAccountHealthUpdate = gpGlobals->time + 5.0f;
@@ -7225,15 +7290,25 @@ void EXT_FUNC CBasePlayer::__API_HOOK(UpdateClientData)()
 				continue;
 #endif // REGAMEDLL_FIXES
 
-			MESSAGE_BEGIN(MSG_ONE, gmsgHealthInfo, nullptr, pPlayer->edict());
-				WRITE_BYTE(entindex());
-				WRITE_LONG(ShouldToShowHealthInfo(pPlayer) ? m_iClientHealth : -1 /* means that 'HP' field will be hidden */);
-			MESSAGE_END();
+#ifdef REGAMEDLL_FIXES
+			if (scoreboard_showmoney.value != -1.0f)
+#endif
+			{
+				MESSAGE_BEGIN(MSG_ONE, gmsgHealthInfo, nullptr, pPlayer->edict());
+					WRITE_BYTE(entindex());
+					WRITE_LONG(ShouldToShowHealthInfo(pPlayer) ? m_iClientHealth : -1 /* means that 'HP' field will be hidden */);
+				MESSAGE_END();
+			}
 
-			MESSAGE_BEGIN(MSG_ONE, gmsgAccount, nullptr, pPlayer->edict());
-				WRITE_BYTE(entindex());
-				WRITE_LONG(ShouldToShowAccount(pPlayer) ? m_iAccount : -1 /* means that this 'Money' will be hidden */);
-			MESSAGE_END();
+#ifdef REGAMEDLL_FIXES
+			if (scoreboard_showhealth.value != -1.0f)
+#endif
+			{
+				MESSAGE_BEGIN(MSG_ONE, gmsgAccount, nullptr, pPlayer->edict());
+					WRITE_BYTE(entindex());
+					WRITE_LONG(ShouldToShowAccount(pPlayer) ? m_iAccount : -1 /* means that this 'Money' will be hidden */);
+				MESSAGE_END();
+			}
 		}
 
 		m_iLastAccount = m_iAccount;
