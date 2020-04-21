@@ -67,6 +67,15 @@ task publishPackage(type: Zip, dependsOn: 'publishPrepareFiles') {
 	from 'publish/publishRoot'
 }
 
+Properties repoCreds = new Properties()
+project.ext.repoCreds = repoCreds
+if (file('repo_creds.properties').exists()) {
+	println 'Loading maven repo credentials'
+	file('repo_creds.properties').withReader('UTF-8', { Reader r ->
+		repoCreds.load(r)
+	})
+}
+
 publishing {
 	publications {
 		maven(MavenPublication) {
@@ -107,18 +116,7 @@ publishing {
 			}
 		}
 	}
-}
 
-Properties repoCreds = new Properties()
-project.ext.repoCreds = repoCreds
-if (file('repo_creds.properties').exists()) {
-	println 'Loading maven repo credentials'
-	file('repo_creds.properties').withReader('UTF-8', { Reader r ->
-		repoCreds.load(r)
-	})
-}
-
-publishing {
 	repositories {
 		maven {
 			if (project.version.contains('dev')) {

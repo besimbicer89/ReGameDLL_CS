@@ -10,7 +10,7 @@ apply plugin: 'idea'
 
 idea {
 	project {
-		languageLevel = 'JDK_1_7'
+		languageLevel = 'JDK_1_8'
 	}
 }
 

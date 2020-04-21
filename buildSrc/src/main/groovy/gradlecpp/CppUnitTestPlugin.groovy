@@ -1,6 +1,5 @@
 package gradlecpp
 
-import gradlecpp.teamcity.TeamCityIntegration
 import org.gradle.api.Action
 import org.gradle.api.GradleException
 import org.gradle.api.Plugin
@@ -199,39 +198,25 @@ class CppUnitTestPlugin implements Plugin<Project> {
 
                 // run all tests
                 println "Running ${root.test.size()} tests..."
-                TeamCityIntegration.suiteStarted("unitTests.${libBin.name}")
+
                 int failCount = 0;
                 root.test.list().each { testInfo ->
                     def testName = '' + testInfo.@name.text()
                     def testGroup = '' + testInfo.@group.text()
                     def testTimeout = ('' + testInfo.@timeout.text()) as int
 
-                    if (!TeamCityIntegration.writeOutput) {
-                        print "  ${testGroup}-${testName}..."
-                        System.out.flush()
-                    }
+                    print "  ${testGroup}-${testName}..."
+                    System.out.flush()
 
-                    TeamCityIntegration.testStarted("${testGroup}-${testName}")
                     def testExecStatus = runTestExecutable(libBin, testExecBin.executableFile.absolutePath, ['-runTest', testGroup, testName],  "${testGroup}-${testName}", testTimeout)
                     if (!testExecStatus.successful) {
-                        if (!TeamCityIntegration.writeOutput) {
-                            println " Failed"
-                        }
-
-                        TeamCityIntegration.testFailed("${testGroup}-${testName}", "test executable return code is ${testExecStatus.exitCode}", "test executable return code is ${testExecStatus.exitCode}")
+                        println "Failed (return code is ${testExecStatus.exitCode})"
                         dumpTestExecStatus(testExecStatus)
                         failCount++
                     } else {
-                        if (!TeamCityIntegration.writeOutput) {
-                            println " OK"
-                        }
+                        println " OK"
                     }
-
-                    TeamCityIntegration.testStdOut("${testGroup}-${testName}", testExecStatus.output)
-                    TeamCityIntegration.testFinished("${testGroup}-${testName}", testExecStatus.durationMsec)
-
                 }
-                TeamCityIntegration.suiteFinished("unitTests.${libBin.name}")
 
                 if (failCount) {
                     throw new GradleException("CPP unit tests: ${failCount} tests failed");
