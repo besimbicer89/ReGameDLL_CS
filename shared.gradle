@@ -12,6 +12,7 @@ apply from: 'shared_clang.gradle'
 apply from: 'shared_gcc.gradle'
 
 rootProject.ext.createToolchainConfig = { NativeBinarySpec bin ->
+
 	BinaryKind binaryKind
 	if (bin instanceof NativeExecutableBinarySpec)
 	{
@@ -31,6 +32,7 @@ rootProject.ext.createToolchainConfig = { NativeBinarySpec bin ->
 	}
 
 	boolean releaseBuild = bin.buildType.name.toLowerCase() == 'release'
+
 	if (bin.toolChain instanceof VisualCpp)
 	{
 		return rootProject.createMsvcConfig(releaseBuild, binaryKind)
