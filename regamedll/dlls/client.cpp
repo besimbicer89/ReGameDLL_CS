@@ -379,7 +379,7 @@ void EXT_FUNC ClientKill(edict_t *pEntity)
 
 	pPlayer->m_LastHitGroup = HITGROUP_GENERIC;
 
-	// don't let them suicide for 5 seconds after suiciding
+	// don't let them suicide for 1 second after suiciding
 	pPlayer->m_fNextSuicideTime = gpGlobals->time + 1.0f;
 
 	// have the player kill themself
@@ -4894,7 +4894,12 @@ void EXT_FUNC UpdateClientData(const edict_t *ent, int sendweapons, struct clien
 		cd->m_flNextAttack = pPlayer->m_flNextAttack;
 
 		int iUser3 = 0;
-		if (pPlayer->m_bCanShoot && !pPlayer->m_bIsDefusing)
+
+		if (
+#ifdef REGAMEDLL_API
+			pPlayer->CSPlayer()->m_bCanShootOverride ||
+#endif
+			(pPlayer->m_bCanShoot && !pPlayer->m_bIsDefusing))
 			iUser3 |= PLAYER_CAN_SHOOT;
 
 		if (g_pGameRules->IsFreezePeriod())
